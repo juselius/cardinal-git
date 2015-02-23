@@ -96,6 +96,7 @@
 * branches are dirt cheap
 
 ### make sha1 snapshot
+```bash
     $ cat << EOF > ~/bin/make_snapshot.sh
     [ -d .snap ] && exit 1
     echo -n "message: "; read msg
@@ -112,15 +113,17 @@
     mkdir .snap/snapshot/$sha1
     cp -a * .snap/snapshot/$sha1
     echo $sha1 > .snap/branches/$branch
+```
 
 ## merging
 * merging two snapshots is a breeze:
-
-        $ head=`cat .snap/HEAD`
-        $ mkdir /tmp/newsnap; cp -a .snap/snapshots/`cat .snap/branches/$head`
-        $ branch=`cat .snap/branches/other`
-        $ diff -uN .snap/snapshots/$branch /tmp/newsnap | patch
-        $ make_snapshot.sh $branch
+    ```shell
+    $ head=`cat .snap/HEAD`
+    $ mkdir /tmp/newsnap; cp -a .snap/snapshots/`cat .snap/branches/$head`
+    $ branch=`cat .snap/branches/other`
+    $ diff -uN .snap/snapshots/$branch /tmp/newsnap | patch
+    $ make_snapshot.sh $branch
+    ```
 * note:
     * merged snapshots have more than one parent
     * merges can fail!
@@ -139,13 +142,16 @@
     3. merge snapshots
 
 ## clone_project.sh
+```bash
     cat << EOF > copy_project.sh
     scp -r $1 .
     cd `sed 's/.*[:/]//'`/.snap/branches
     mkdir origin
     cp * origin
+```
 
 ## retrieve_snapshots.sh
+```bash
     host=`echo $1 | sed 's/:.*//'`
     prj=`echo $1 | sed 's/.*://'`
     scp $1/.snap/branches/$2 .snap/branches/remote/$2
@@ -156,43 +162,147 @@
         sha1=`cat .snap/snapshots/$sha1/messages | sed -n 's/parent: //p'
         [ x$sha1 = "" ] && break
     done
-
-## snap vs. git
-* what does this have to do with git?
-
-        $ mv .snap/snapshots .snap/objects
-        $ mkdir .snap/refs
-        $ mv .snap/branches .snap/refs/heads
-        $ mv .snap/tags .snap/refs/tags
-        $ mv .snap .git
-* that's essentially the core git
-* the rest is user interface and plumbing
-* (and some optimizations)
-
-## fast forward
-
-## staging
+```
 
 ## optional optimizations
+* saving complete snapshots is both inefficient and wasteful
+* we can use sha1 to alleviate the problem:
+    1. at a leaf, record the file name, permission and sha1 of all files in a
+       file called ``tree``:
+       ```
+        100644 blob f74993... foo.c
+        100644 blob eef67a... CMakeLists.txt
+      ```
+    2. rename the files to their sha1 and move to ``snapshots``
+    3. go one level up, and repeat. compute the sha1 of all tree files and add
+       them to the current tree file with the permissions and name of the
+       corresponding directory:
+       ```
+        100644 blob c4g509... CMakeLists.txt
+        100644 tree 77394a... src
+      ```
+    4. goto 2
+    5. compress all new objects
+* now the sha1 of every commit is not only dependent on it's entire history,
+  it's dependent on the entire history of each and every file!
+* if a single bit changes anywhere in the history, the sha1 will not match
+  anymore and we get an error
 
-## changing history
-* rebase
-* rebase -i
-* warning!
+## snap vs. git
+* what does snap have to do with git?
+    ```shell
+    $ mv .snap/snapshots .snap/objects
+    $ mkdir .snap/refs
+    $ mv .snap/branches .snap/refs/heads
+    $ mv .snap/tags .snap/refs/tags
+    $ mv .snap .git
+    ```
+* that's essentially the core git
+* the rest is user interface and plumbing
+* (plus some optimizations)
 
-commit --ammend
-conflicts
-revert
-reset
+## staging
+* we often want to split the current changes into multiple commits
+* git uses a staging area (called ``index`` [sic]) to prepare commits:
+    1. ``git add`` copies new or modified files to the staging area
+    2. ``git commit`` creates the actual commit (snapshot) and resets the
+       index
+* many commands (e.g. ``git diff, git status...``) utilize the index
 
-log
-status
-grep
-diff
+## conflicts
+* sometimes merges can result in conflicts, when files have changes at the
+  same locations
+* when a conflict occurs:
+    * merged, unconflicted files are added to the index
+    * unmerged, conflicted files are left in place, with conflict markers
+      added
+* resolving conflicts:
+    1. edit the conflicting files, fix the code and remove the conflict
+       markers
+    2. ``git add`` the conflicting files
+    3. ``git commit`` without editing the commit message
 
-reflog
-gc
-cherry-pick
-blame
-bisect
+## fast forward
+* sometimes the originating branch has not changed since the branching point
+* in such cases we only need to update the branch head to make a merge
+* this is known as a fast-forward merge, since no actual merging is needed
 
+## push
+* when we fetch and merge changes from a remote repository, we risk conflicts
+  which must be resolved by hand
+* in the opposite case, when pushing commits to a remote, nobody is there to
+  resolve conflicts
+* a push must always result in a fast-forward merge in the remote
+* this is easily achieved by a fetch and merge before pushing
+
+## rebasing
+* rebasing is an alternative to merging, and can result in a cleaner/nicer
+  commit history
+* merges:
+    * result in a commit with two parents
+    * tell what and how things **actually** happened
+* rebase:
+    * rewrites commits, as if they had happened on a different branch
+    * tells a developers fairy tale
+* warning! never, ever, never rebase commits which have already been pushed to
+  a shared repository! this will mess up history for everybody!
+
+# good to know
+* if you forget to add a file to a commit, or you find a typo in the commit
+  message: ``git commit --ammend`` (never do this after a push!)
+* you push a bad commit: ``git revert``
+* you want to throw away all changes and start over: ``git reset --hard HEAD``
+* you want to unstage a file: ``git reset {file}`` (unstage all ``git reset
+  HEAD``)
+* you realize you should have branched 3 commits earlier:
+    1. ``git branch mybranch``
+    2. ``git reset --hard HEAD~3``
+    3. ``git checkout mybranch``
+* commits can be rewritten, edited, split, deleted, squashed: ``git rebase -i``
+
+## my precious
+```shell
+    $ git status
+    $ git log
+    $ git log --stat
+    $ git log --graph --abbrev-commit --oneline --decorate --all
+    $ git diff
+    $ git grep
+    $ for i in `git grep -l ...`; do sed -i 's/stuff/newstuff/g'; done
+```
+
+## worth knowing
+```shell
+    $ git reflog
+    $ git gc
+    $ git cherry-pick
+    $ git blame
+    $ git bisect
+```
+
+## .gitconfig
+```
+[user]
+    name = Rab Oof
+    email = rab.oof@foo.bar
+[merge]
+    tool = diffuse
+[color]
+    branch = auto
+    diff = auto
+    status = auto
+[pull]
+    rebase = true
+[alias]
+    ll = log --stat
+    co = checkout
+    ci = commit
+    st = status
+    unstage = reset HEAD
+    pick = cherry-pick
+    history = log --graph --decorate --abbrev-commits --all
+[core]
+    editor = vim
+[help]
+    autocorrect = 1
+```
