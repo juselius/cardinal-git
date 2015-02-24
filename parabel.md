@@ -34,15 +34,15 @@
 * for simplicity we'll make a snapshot/backup manager instead
 
 ## snapshots
-* simply make copies of the source tree every time you feel the need
-* let's be systematic:
-
-        $ mkdir -p .snap/snapshots
-        $ cat << EOF > ~/bin/make_snapshot.sh
-        [ -d .snap ] && exit 1
-        n=$((`ls -1 .snap/snapshots | tail -1 | sed 's/foo-//'` + 1))
-        $ mkdir .snap/snapshot-$n
-        cp -a * .snap/snapshot-$n
+* simply make copies of the source tree every time you feel the need:
+```shell
+    $ mkdir -p .snap/snapshots
+    $ cat << EOF > ~/bin/make_snapshot.sh
+    [ -d .snap ] && exit 1
+    n=$((`ls -1 .snap/snapshots | tail -1 | sed 's/foo-//'` + 1))
+    $ mkdir .snap/snapshot-$n
+    cp -a * .snap/snapshot-$n
+```
 
 ## messages
 * this quickly becomes unmanageable
@@ -51,7 +51,7 @@
     * a message of what has changed since the previous snapshot
     * the time and date
     * the author
-
+    ```bash
         $ cat << EOF > ~/bin/make_snapshot.sh
         [ -d .snap ] && exit 1
         n=$((`ls -1 .snap/snapshots | tail -1 | sed 's/foo-//'` + 1))
@@ -62,23 +62,23 @@
         author: jonas juselius <jonas.juselius@uit.no>
         date: `date`
         message: $msg
+    ```
 
-## branching
-* at snapshot 100 you release the code as v1.0 to clients
-* you create 10 new snapshots, increasing the value of the code by 100 000
-* a client reports a problem in v1.0
-* you go back to snapshot 100 and fix the problem, producing a new snapshot
-* but what should the snapshot be called? it's not a linear development
-  anymore
+## the branching problem
+1. at snapshot 100 you release v1.0 to clients
+2. you create 10 new snapshots, increasing the value of the code by 10,000$
+3. a client reports a problem in v1.0
+4. you go back to snapshot 100 and fix the problem, producing a new snapshot
+5. what should the snapshot be called? it's not a linear development anymore
 
-## the sha to the resuce
+## sha to the resuce
 * back to the drawing board:
-    * let's identify each snapshot by the SHA1 of the message file
-    * since development is non-linear we also need to add the SHA1 of the
+    * let's identify each snapshot by the sha1 of the message file
+    * since development is non-linear we also need to add the sha1 of the
       parent commit to the message
-    * now the SHA1 of the message file uniquely identifies not only the
+    * now the sha1 of the message file uniquely identifies not only the
       snapshot, but it's whole history!
-    * then we rename the snapshots to the SHA1 of the message file (and put
+    * then we rename the snapshots to the sha1 of the message file (and put
       them in .snap/snapshots
 
 ## branches
@@ -92,8 +92,8 @@
 
 * every time we make a new snapshot, we update the corresponding branch file
 * we can also make a directory called ``tags`` which contain files with the
-  SHA1 of particular snapshots we want to remember (e.g. v1.0)
-* branches are dirt cheap
+  sha1 of particular snapshots we want to remember (e.g. v1.0)
+* branches are cheap, it's just a number in a file
 
 ### make sha1 snapshot
 ```bash
@@ -169,20 +169,29 @@
 * we can use sha1 to alleviate the problem:
     1. at a leaf, record the file name, permission and sha1 of all files in a
        file called ``tree``:
-       ```
-        100644 blob f74993... foo.c
-        100644 blob eef67a... CMakeLists.txt
-      ```
-    2. rename the files to their sha1 and move to ``snapshots``
+
+                100644 blob f74993... foo.c
+                100644 blob 5dd4e1... bar.c
+                100644 blob eef67a... CMakeLists.txt
+    2. rename the files (including ``tree``) to their sha1 and move them to
+       ``snapshots``
     3. go one level up, and repeat. compute the sha1 of all tree files and add
        them to the current tree file with the permissions and name of the
        corresponding directory:
-       ```
-        100644 blob c4g509... CMakeLists.txt
-        100644 tree 77394a... src
-      ```
+
+                100644 blob c4g509... CMakeLists.txt
+                100644 blob 94e477... README.md
+                100644 tree 77394a... src
     4. goto 2
-    5. compress all new objects
+    5. when the toplevel ``tree`` file has been moved, add the sha1 to the
+       ``message`` file,:
+    ```
+        tree: ee4c33...
+    ```
+    6. compute the sha1 of the message file, move it to ``snapshots``, and put
+       the sha1 in the branch file
+    6. behold the DAG!
+    7. compress all new objects
 * now the sha1 of every commit is not only dependent on it's entire history,
   it's dependent on the entire history of each and every file!
 * if a single bit changes anywhere in the history, the sha1 will not match
