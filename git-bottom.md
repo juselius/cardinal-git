@@ -280,13 +280,25 @@
     $ for i in `git grep -l ...`; do sed -i 's/stuff/newstuff/g'; done
 ```
 
-## worth knowing
+## falsifying history
+```shell
+    $ git commit --amend
+    $ git rebase
+    $ git filter-branch
+```
+## picking cherries
+* sometimes you want to merge only selected commits from a branch
+* ``git cherry-pick`` allows you to apply specific changes to the current
+  branch
+* for cherry picking to be useful, commits must be "small"!
+* ``git cherry`` lists missing commits between branches
+
+## when things go south
 ```shell
     $ git reflog
-    $ git gc
-    $ git cherry-pick
     $ git blame
     $ git bisect
+    $ git gc
 ```
 
 ## .gitconfig
