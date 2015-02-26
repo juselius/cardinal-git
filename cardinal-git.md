@@ -4,8 +4,7 @@
 * git is hard!
 * git is not hard enough!
 * git is simpler than cvs!
-* git is to cvs what wordpad is to vim (or emacs)!
-* git is a PS4 controller compared to a joystick!
+* git is to cvs like wordpad to vim!
 
 ## cvs
 * cvs is not a proper version control system
@@ -14,15 +13,16 @@
     * had multiple active repos (for each branch)?
     * committed only when a feature is ready and tested? (i.e. once in a week
       to a month)
+* cvs is not helping us
 * cvs is a publication tool, not a scm
 
 ## git
 * git has two distinct modes of operation:
     * scm
     * communication
-* the scm part is feature rich and powerful, and takes time to master
-* to use the scm we must understand the underlying machinery. period.
-* the communication part is small, lean and nearly trivial
+* the scm is feature rich and powerful, and takes time to master
+* the communication part is small and simple
+* to effectively use the scm we must understand the underlying machinery
 * treat the communication part like any serious publication activity:
     1. edit the raw material to tell a story
     2. double check that it makes sense
@@ -30,18 +30,19 @@
 
 # snap
 * let's roll our own scm using only standard unix tools
-* deltas and revisions are hard
-* for simplicity we'll make a snapshot/backup manager instead
+* deltas and revisions are hard:
+    * make a snapshot/backup manager instead
 
 ## snapshots
-* simply make copies of the source tree every time you feel the need:
-```shell
-    $ mkdir -p .snap/snapshots
-    $ cat << EOF > ~/bin/make_snapshot.sh
-    [ -d .snap ] && exit 1
-    n=$((`ls -1 .snap/snapshots | tail -1 | sed 's/foo-//'` + 1))
-    $ mkdir .snap/snapshot-$n
-    cp -a * .snap/snapshot-$n
+* make copies of the source tree every time you feel the need
+
+```bash
+#!/bin/bash
+shopt -s extglob
+[ ! -d .snap ] && exit 1
+n=$((`ls -1 .snap/snapshots | tail -1` + 1))
+mkdir .snap/snapshots/$n
+cp -a ./!(.snap|.|..) .snap/snapshots/$n
 ```
 
 ## messages
@@ -51,18 +52,21 @@
     * a message of what has changed since the previous snapshot
     * the time and date
     * the author
-    ```bash
-        $ cat << EOF > ~/bin/make_snapshot.sh
-        [ -d .snap ] && exit 1
-        n=$((`ls -1 .snap/snapshots | tail -1 | sed 's/foo-//'` + 1))
-        $ mkdir .snap/snapshot/$n
-        cp -a * .snap/snapshot/$n
-        echo -n "message: "; read msg
-        cat << EOF0 > message
-        author: jonas juselius <jonas.juselius@uit.no>
-        date: `date`
-        message: $msg
-    ```
+
+```bash
+#!/bin/bash
+shopt -s extglob
+[ ! -d .snap ] && exit 1
+n=$((`ls -1 .snap/snapshots | tail -1` + 1))
+mkdir .snap/snapshots/$n
+cp -a ./!(.snap|.|..) .snap/snapshots/$n
+echo -n "message: "; read msg
+cat << EOF > .snap/snapshots/$n/message
+author: $USER <$USER@`hostname -f`>
+date: `date`
+message: $msg
+EOF
+```
 
 ## the branching problem
 1. at snapshot 100 you release v1.0 to clients
@@ -95,41 +99,75 @@
   sha1 of particular snapshots we want to remember (e.g. v1.0)
 * branches are cheap, it's just a number in a file
 
+```bash
+#!/bin/bash
+[ ! -d .snap ] && exit 1
+[ -d .snap/branches/$1 ] && exit 1
+head=`cat .snap/HEAD`
+echo "`cat .snap/branches/$head`" > .snap/branches/$1
+```
+
 ### make sha1 snapshot
 ```bash
-    $ cat << EOF > ~/bin/make_snapshot.sh
-    [ -d .snap ] && exit 1
-    echo -n "message: "; read msg
-    branch= `cat .snap/HEAD`
+#!/bin/bash
+[ ! -d .snap ] && exit 1
+echo -n "message: "; read msg
+branch=`cat .snap/HEAD`
 
-    cat << EOF0 >> message
-    parent: `cat .snap/branches/$branch`
-    author: jonas juselius <jonas.juselius@uit.no>
-    date: `date`
-    message: $msg
-    EOF0
+cat << EOF0 > .message
+parent: `cat .snap/branches/$branch`
+author: $USER <$USER@`hostname -f`>
+date: `date`
+message: $msg
+EOF0
+[ x$1 != x ] && echo "parent: `cat .snap/branches/$1`" >> .message
 
-    sha1=`sha1sum message`
-    mkdir .snap/snapshot/$sha1
-    cp -a * .snap/snapshot/$sha1
-    echo $sha1 > .snap/branches/$branch
+sha1=`sha1sum .message | cut -d ' ' -f1`
+mkdir .snap/snapshots/$sha1
+cp -a * .snap/snapshots/$sha1
+mv .message .snap/snapshots/$sha1/message
+echo $sha1 > .snap/branches/$branch
+```
+
+## changing branches
+* changing branches is easy:
+    * remove all project files
+    * copy the new branch snapshot to the project directory
+
+```bash
+#!/bin/bash
+shopt -s extglob
+[ ! -d .snap ] && exit 1
+[ ! -e .snap/branches/$1 ] && exit 1
+rm -rf ./!(.snap|.|..)
+sha1=`cat .snap/branches/$1`
+cp -a .snap/snapshots/$sha1/!(message|.|..) .
+echo $1 >.snap/HEAD
 ```
 
 ## merging
-* merging two snapshots is a breeze:
-    ```shell
-    $ head=`cat .snap/HEAD`
-    $ mkdir /tmp/newsnap; cp -a .snap/snapshots/`cat .snap/branches/$head`
-    $ branch=`cat .snap/branches/other`
-    $ diff -uN .snap/snapshots/$branch /tmp/newsnap | patch
-    $ make_snapshot.sh $branch
-    ```
+* merging two snapshots is a breeze
 * note:
     * merged snapshots have more than one parent
     * merges can fail!
     * focus has shifted from simple backups to snapshots and their
       relationships
-    * behold the DAG!
+    * behold the dag!
+
+```bash
+#!/bin/bash
+shopt -s extglob
+[ ! -d .snap ] && exit 1
+[ ! -e .snap/branches/$1 ] && exit 1
+head=`cat .snap/HEAD`
+mkdir -p /tmp/snap.$$/a /tmp/snap.$$/b
+cp -a .snap/snapshots/`cat .snap/branches/$head`/!(.|..) /tmp/snap.$$/a
+cp -a .snap/snapshots/`cat .snap/branches/$1`/!(.|..) /tmp/snap.$$/b
+rm /tmp/snap.$$/a/message /tmp/snap.$$/b/message
+diff -uN /tmp/snap.$$/a /tmp/snap.$$/b | patch
+.snap/bin/make_snapshot.sh $branch
+rm -rf /tmp/snap.$$
+```
 
 ## sharing is caring
 * we want to be able to work on multiple machines (e.g. laptop)
@@ -141,28 +179,52 @@
     2. copy the branch files to ``.snap/branches/laptop/``
     3. merge snapshots
 
-## clone_project.sh
+## cloning
 ```bash
-    cat << EOF > copy_project.sh
-    scp -r $1 .
-    cd `sed 's/.*[:/]//'`/.snap/branches
-    mkdir origin
-    cp * origin
+#!/bin/bash
+shopt -s extglob
+scp -r $1 $2
+cd $2/.snap/branches
+mkdir origin
+mv ./!(origin)  origin
+cp origin/master .
+cd ..
+echo "master" > HEAD
 ```
 
-## retrieve_snapshots.sh
+## fetching remote snapshots
 ```bash
-    host=`echo $1 | sed 's/:.*//'`
-    prj=`echo $1 | sed 's/.*://'`
-    scp $1/.snap/branches/$2 .snap/branches/remote/$2
-    $sha1=`cat .snap/branches/remote/$2`
-    while true; do
-        [ -e .snap/snapshots/$sha1 ] && break
-        scp -r $1/.snap/snapshot/$sha1 .snap/snapshots/
-        sha1=`cat .snap/snapshots/$sha1/messages | sed -n 's/parent: //p'
-        [ x$sha1 = "" ] && break
-    done
+#!/bin/bash
+[ ! -d .snap ] && exit 1
+[ ! -e .snap/branches/origin/$2 ] && exit 1
+scp $1/.snap/branches/$2 .snap/branches/origin/$2
+sha1=`cat .snap/branches/origin/$2`
+while true; do
+    [ -e .snap/snapshots/$sha1 ] && break
+    echo $sha1
+    scp -r $1/.snap/snapshots/$sha1 .snap/snapshots/
+    sha1=`cat .snap/snapshots/$sha1/message | sed -n 's/parent: //p'`
+    [ x$sha1 = x ] && break
+done
 ```
+
+## initialization is a snap
+
+```bash
+#!/bin/bash
+[ -d .snap ] && exit 1
+script=`readlink -f $0`
+snapdir=`dirname $script`
+mkdir .snap
+mkdir .snap/snapshots
+mkdir .snap/bin
+mkdir .snap/branches
+mkdir .snap/tags
+cp $snapdir/*.sh .snap/bin/
+echo "master" > .snap/HEAD
+echo "0" > .snap/branches/master
+```
+
 
 ## optional optimizations
 * saving complete snapshots is both inefficient and wasteful
@@ -190,7 +252,7 @@
     ```
     6. compute the sha1 of the message file, move it to ``snapshots``, and put
        the sha1 in the branch file
-    6. behold the DAG!
+    6. behold the dag!
     7. compress all new objects
 * now the sha1 of every commit is not only dependent on it's entire history,
   it's dependent on the entire history of each and every file!
