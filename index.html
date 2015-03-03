@@ -405,36 +405,38 @@ echo &#34;0&#34; &gt; .snap/branches/master
 
 ## optional optimizations
 * saving complete snapshots is both inefficient and wasteful
-* we can use sha1 to alleviate the problem:
-    1. at a leaf, record the file name, permission and sha1 of all files in a
-       file called ``tree``:
+* we can use sha1 to alleviate the problem
 
-                100644 blob f74993... foo.c
-                100644 blob 5dd4e1... bar.c
-                100644 blob eef67a... CMakeLists.txt
-    2. rename the files (including ``tree``) to their sha1 and move them to
-       ``snapshots``
-    3. go one level up, and repeat. compute the sha1 of all tree files and add
-       them to the current tree file with the permissions and name of the
-       corresponding directory:
+1. at a leaf, record the file name, permission and sha1 of all files in a
+   file called ``tree``:
 
-                100644 blob c4g509... CMakeLists.txt
-                100644 blob 94e477... README.md
-                100644 tree 77394a... src
-    4. goto 2
+            100644 blob f74993... foo.c
+            100644 blob 5dd4e1... bar.c
+            100644 blob eef67a... CMakeLists.txt
+2. rename the files (including ``tree``) to their sha1 and move them to
+   ``snapshots``
+3. go one level up, and repeat. compute the sha1 of all tree files and add
+   them to the current tree file with the permissions and name of the
+   corresponding directory:
+
+            100644 blob c4g509... CMakeLists.txt
+            100644 blob 94e477... README.md
+            100644 tree 77394a... src
+4. goto 2
 
 ---
 
 ## optional optimizations (contd.)
-    5. when the toplevel ``tree`` file has been moved, add the sha1 to the
-       ``message`` file,:
-    ```
-        tree: ee4c33...
-    ```
-    6. compute the sha1 of the message file, move it to ``snapshots``, and put
-       the sha1 in the branch file
-    6. behold the dag!
-    7. compress all new objects
+5. when the toplevel ``tree`` file has been moved, add the sha1 to the
+   ``message`` file,:
+```
+    tree: ee4c33...
+```
+6. compute the sha1 of the message file, move it to ``snapshots``, and put
+   the sha1 in the branch file
+6. behold the dag!
+7. compress all new objects
+
 * now the sha1 of every commit is not only dependent on it&#39;s entire history,
   it&#39;s dependent on the entire history of each and every file!
 * if a single bit changes anywhere in the history, the sha1 will not match
