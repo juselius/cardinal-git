@@ -1,3 +1,11 @@
+# Cardinal git
+
+## Jonas Juselius <jonas.juselius@uit.no>
+
+---
+
+layout: false
+
 # git happens
 * git is not a better cvs!
 * do not try to use git like cvs!
@@ -5,6 +13,8 @@
 * git is not hard enough!
 * git is simpler than cvs!
 * git is to cvs like wordpad to vim!
+
+---
 
 ## cvs
 * cvs is not a proper version control system
@@ -15,6 +25,8 @@
       to a month)
 * cvs is not helping us
 * cvs is a publication tool, not a scm
+
+---
 
 ## git
 * git has two distinct modes of operation:
@@ -28,10 +40,14 @@
     2. double check that it makes sense
     3. press send
 
+---
+
 # snap
 * let's roll our own scm using only standard unix tools
 * deltas and revisions are hard:
     * make a snapshot/backup manager instead
+
+---
 
 ## snapshots
 * make copies of the source tree every time you feel the need
@@ -45,6 +61,8 @@ mkdir .snap/snapshots/$n
 cp -a ./!(.snap|.|..) .snap/snapshots/$n
 ```
 
+---
+
 ## messages
 * this quickly becomes unmanageable
 * it's impossible to remember what each snapshot was about
@@ -52,6 +70,8 @@ cp -a ./!(.snap|.|..) .snap/snapshots/$n
     * a message of what has changed since the previous snapshot
     * the time and date
     * the author
+
+---
 
 ```bash
 #!/bin/bash
@@ -68,12 +88,16 @@ message: $msg
 EOF
 ```
 
+---
+
 ## the branching problem
 1. at snapshot 100 you release v1.0 to clients
 2. you create 10 new snapshots, increasing the value of the code by 10,000$
 3. a client reports a problem in v1.0
 4. you go back to snapshot 100 and fix the problem, producing a new snapshot
 5. what should the snapshot be called? it's not a linear development anymore
+
+---
 
 ## sha to the resuce
 * back to the drawing board:
@@ -84,6 +108,8 @@ EOF
       snapshot, but it's whole history!
     * then we rename the snapshots to the sha1 of the message file (and put
       them in .snap/snapshots
+
+---
 
 ## branches
 * how do we find the heads of out branches?
@@ -107,6 +133,8 @@ head=`cat .snap/HEAD`
 echo "`cat .snap/branches/$head`" > .snap/branches/$1
 ```
 
+---
+
 ### make sha1 snapshot
 ```bash
 #!/bin/bash
@@ -129,6 +157,8 @@ mv .message .snap/snapshots/$sha1/message
 echo $sha1 > .snap/branches/$branch
 ```
 
+---
+
 ## changing branches
 * changing branches is easy:
     * remove all project files
@@ -144,6 +174,8 @@ sha1=`cat .snap/branches/$1`
 cp -a .snap/snapshots/$sha1/!(message|.|..) .
 echo $1 >.snap/HEAD
 ```
+
+---
 
 ## merging
 * merging two snapshots is a breeze
@@ -169,6 +201,8 @@ diff -uN /tmp/snap.$$/a /tmp/snap.$$/b | patch
 rm -rf /tmp/snap.$$
 ```
 
+---
+
 ## sharing is caring
 * we want to be able to work on multiple machines (e.g. laptop)
 * simply copy the whole project, ``.snap`` and all to the laptop (i.e. remote
@@ -178,6 +212,8 @@ rm -rf /tmp/snap.$$
     1. copy the new snapshots back (using branches/desktop on the laptop)
     2. copy the branch files to ``.snap/branches/laptop/``
     3. merge snapshots
+
+---
 
 ## cloning
 ```bash
@@ -191,6 +227,8 @@ cp origin/master .
 cd ..
 echo "master" > HEAD
 ```
+
+---
 
 ## fetching remote snapshots
 ```bash
@@ -207,6 +245,8 @@ while true; do
     [ x$sha1 = x ] && break
 done
 ```
+
+---
 
 ## initialization is a snap
 
@@ -225,6 +265,7 @@ echo "master" > .snap/HEAD
 echo "0" > .snap/branches/master
 ```
 
+---
 
 ## optional optimizations
 * saving complete snapshots is both inefficient and wasteful
@@ -259,6 +300,8 @@ echo "0" > .snap/branches/master
 * if a single bit changes anywhere in the history, the sha1 will not match
   anymore and we get an error
 
+---
+
 ## snap vs. git
 * what does snap have to do with git?
     ```shell
@@ -272,6 +315,8 @@ echo "0" > .snap/branches/master
 * the rest is user interface and plumbing
 * (plus some optimizations)
 
+---
+
 ## staging
 * we often want to split the current changes into multiple commits
 * git uses a staging area (called ``index`` [sic]) to prepare commits:
@@ -279,6 +324,8 @@ echo "0" > .snap/branches/master
     2. ``git commit`` creates the actual commit (snapshot) and resets the
        index
 * many commands (e.g. ``git diff, git status...``) utilize the index
+
+---
 
 ## conflicts
 * sometimes merges can result in conflicts, when files have changes at the
@@ -293,10 +340,14 @@ echo "0" > .snap/branches/master
     2. ``git add`` the conflicting files
     3. ``git commit`` without editing the commit message
 
+---
+
 ## fast forward
 * sometimes the originating branch has not changed since the branching point
 * in such cases we only need to update the branch head to make a merge
 * this is known as a fast-forward merge, since no actual merging is needed
+
+---
 
 ## push
 * when we fetch and merge changes from a remote repository, we risk conflicts
@@ -305,6 +356,8 @@ echo "0" > .snap/branches/master
   resolve conflicts
 * a push must always result in a fast-forward merge in the remote
 * this is easily achieved by a fetch and merge before pushing
+
+---
 
 ## rebasing
 * rebasing is an alternative to merging, and can result in a cleaner/nicer
@@ -318,7 +371,9 @@ echo "0" > .snap/branches/master
 * warning! never, ever, never rebase commits which have already been pushed to
   a shared repository! this will mess up history for everybody!
 
-# good to know
+---
+
+## good to know
 * if you forget to add a file to a commit, or you find a typo in the commit
   message: ``git commit --ammend`` (never do this after a push!)
 * you push a bad commit: ``git revert``
@@ -331,6 +386,8 @@ echo "0" > .snap/branches/master
     3. ``git checkout mybranch``
 * commits can be rewritten, edited, split, deleted, squashed: ``git rebase -i``
 
+---
+
 ## my precious
 ```shell
     $ git status
@@ -342,18 +399,25 @@ echo "0" > .snap/branches/master
     $ for i in `git grep -l ...`; do sed -i 's/stuff/newstuff/g'; done
 ```
 
+---
+
 ## falsifying history
 ```shell
     $ git commit --amend
     $ git rebase
     $ git filter-branch
 ```
+
+---
+
 ## picking cherries
 * sometimes you want to merge only selected commits from a branch
 * ``git cherry-pick`` allows you to apply specific changes to the current
   branch
 * for cherry picking to be useful, commits must be "small"!
 * ``git cherry`` lists missing commits between branches
+
+---
 
 ## when things go south
 ```shell
@@ -362,6 +426,22 @@ echo "0" > .snap/branches/master
     $ git bisect
     $ git gc
 ```
+
+---
+
+## multiple remotes
+```shell
+$ git remote add forked git@github.com:me/forked.git
+$ git remote set-url --push origin git@github.com:me/forked.git
+```
+
+---
+
+## prompting
+* bash: git@github.com:magicmonty/bash-git-prompt.git
+* zsh:  git@github.com:olivierverdier/zsh-git-prompt.git
+
+---
 
 ## .gitconfig
 ```
@@ -389,3 +469,10 @@ echo "0" > .snap/branches/master
 [help]
     autocorrect = 1
 ```
+
+---
+
+## playing the game
+* [Git Branching game](http://pcottle.github.com/learnGitBranching/?demo)
+    * [src](https://github.com/pcottle/learnGitBranching)
+
